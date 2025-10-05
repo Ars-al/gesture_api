@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Live Gesture Recognition</title>
+</head>
+
+<body>
+  <h1>Live Gesture Recognition (WebSocket)</h1>
+  <video id="video" autoplay playsinline width="400" height="300"></video>
+  <p><b>Prediction:</b> <span id="prediction">Waiting...</span></p>
+
+  <script>
+    const video = document.getElementById("video");
+    const predictionEl = document.getElementById("prediction");
+
+    // Start webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+      });
+
+    // WebSocket connection
+    const socket = new WebSocket("ws://127.0.0.1:8000/ws/gesture/");
+
+    socket.onopen = () => {
+      console.log("✅ WebSocket Connected");
+    };
+
+    socket.onclose = () => {
+      console.log("❌ WebSocket Disconnected");
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.prediction) {
+        predictionEl.textContent = `${data.prediction} (confidence: ${data.confidence.toFixed(2)})`;
+      } else if (data.error) {
+        predictionEl.textContent = "Error: " + data.error;
+      } else if (data.message) {
+        console.log(data.message);
+      }
+    };
+
+    // Send frames every 200ms
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imageData = canvas.toDataURL("image/jpeg");
+        socket.send(JSON.stringify({ image: imageData }));
+      } else {
+        console.log("⚠️ WebSocket not open:", socket.readyState);
+      }
+    }, 200);
+  </script>
+</body>
+
+</html>
